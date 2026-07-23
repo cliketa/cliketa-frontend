@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -59,20 +58,6 @@ interface PlanData {
   // update. Kept optional so old history keeps rendering correctly.
   priceMonthly?: string | null;
   priceYearly?: string | null;
-}
-
-// Unwrap plan.price into a plain display string, regardless of whether
-// it's the new {current,...} object or an old plain string/legacy field.
-function getDisplayPrice(plan: PlanData): string | null {
-  if (plan.price && typeof plan.price === "object") return plan.price.current || null;
-  return (plan.priceMonthly || plan.priceYearly || (plan.price as string | null) || null);
-}
-
-// Unwrap a feature entry into {name, status}, regardless of whether it's
-// the new object shape or an old plain string (treated as "included").
-function getFeatureShape(f: PlanFeature | string): { name: string; status: "included" | "disabled" } {
-  if (f && typeof f === "object") return { name: f.name, status: f.status || "included" };
-  return { name: String(f), status: "included" };
 }
 
 interface Snapshot {
@@ -151,7 +136,6 @@ export default function Dashboard() {
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState<"success" | "error" | null>(null);
   const [snapAnnual, setSnapAnnual] = useState(false);
-  const [showScreenshot, setShowScreenshot] = useState(false); // Layer 3.5 toggle
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
 function showToast(type: "success" | "error", text: string) {
@@ -885,220 +869,28 @@ const recentChanges = [...changes]
                   {/* Header */}
 <div className="snap-header">
   <p className="snap-title">Latest Snapshot</p>
-  {snapshot.data.sectionScreenshotBase64 && (
-    <button
-      onClick={() => setShowScreenshot(s => !s)}
-      className="btn-sec"
-      style={{ fontSize: 12, padding: "4px 10px" }}
-    >
-      <i className={`ti ${showScreenshot ? "ti-list" : "ti-photo"}`}></i>
-      {showScreenshot ? "View structured data" : "View real screenshot"}
-    </button>
-  )}
 </div>
 
 {/* Layer 3.5 — real, current screenshot of the pricing section, captured
-    fresh every scan. This is the visual proof/trust layer: whatever the
-    structured data says, the founder can compare it against exactly what
-    the competitor's page actually shows right now. */}
-{showScreenshot && snapshot.data.sectionScreenshotBase64 ? (
-  <div style={{ padding: "1rem", background: "#fafafa", textAlign: "center" }}>
-    <div style={{ position: "relative", width: "100%", height: 500, borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e8" }}>
-      <Image
-        src={`data:image/png;base64,${snapshot.data.sectionScreenshotBase64}`}
-        alt="Pricing section — real screenshot from latest scan"
-        fill
-        unoptimized
-        style={{ objectFit: "contain" }}
-      />
-    </div>
-    <p style={{ fontSize: 11, color: "#aaa", marginTop: 8 }}>
+    fresh every scan. This IS the snapshot now — no structured data shown
+    here, just exactly what the competitor's page currently displays. */}
+{snapshot.data.sectionScreenshotBase64 ? (
+  <div style={{ padding: "1rem", background: "#fafafa" }}>
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img
+      src={`data:image/png;base64,${snapshot.data.sectionScreenshotBase64}`}
+      alt="Pricing section — real screenshot from latest scan"
+      style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
+    />
+    <p style={{ fontSize: 11, color: "#aaa", marginTop: 8, textAlign: "center" }}>
       Captured live from the competitor&apos;s page during the latest scan
     </p>
   </div>
 ) : (
-  <>
-
-                  {/* Plan cards — prefer Claude's planData (accurate, bundled),
-                      fall back to the old separate arrays only if absent */}
-                  {(snapshot.data.planData && snapshot.data.planData.length > 0) ? (() => {
-                    const planData = snapshot.data.planData!;
-                    const count = planData.length;
-
-                    const darkIndex = count === 1 ? 0
-                      : count === 2 ? 1
-                      : count === 3 ? 1
-                      : 1;
-
-                    // Split into rows of max 4
-                    const firstRow = planData.slice(0, 4);
-                    const secondRow = planData.slice(4);
-
-                    const rowCols = (rowPlans: typeof planData) => {
-                      const n = rowPlans.length;
-                      return n === 1 ? '1fr' : n === 2 ? '1fr 1fr' : n === 3 ? 'repeat(3, 1fr)' : '1fr 1fr 1fr 1fr';
-                    };
-
-                    const renderCard = (plan: PlanData, i: number, globalIndex: number) => {
-                      const isDark = globalIndex === darkIndex;
-                      const d = isDark ? "dark" : "";
-                      const shownPrice = getDisplayPrice(plan);
-                      const priceObj = plan.price && typeof plan.price === "object" ? plan.price : null;
-                      return (
-                        <div key={globalIndex} className={`snap-card ${d}`}>
-                          <p className={`snap-card-name ${d}`}>{plan.name}</p>
-                          {shownPrice ? (
-                            <p className={`snap-card-price ${d}`}>
-                              {cleanPrice(shownPrice)}
-                              {priceObj?.original && (
-                                <span style={{ fontSize: 12, color: "#999", textDecoration: "line-through", marginLeft: 6, fontWeight: 400 }}>
-                                  {cleanPrice(priceObj.original)}
-                                </span>
-                              )}
-                            </p>
-                          ) : (
-                            <p className={`snap-card-price ${d}`} style={{ opacity: 0.2 }}>—</p>
-                          )}
-                          {priceObj?.discount_label && (
-                            <p className={`snap-card-price-sub ${d}`} style={{ color: "#16a34a" }}>{priceObj.discount_label}</p>
-                          )}
-                          {plan.trial?.has_trial && (
-                            <p className={`snap-card-price-sub ${d}`}>
-                              {plan.trial.days ? `${plan.trial.days}-day trial` : "Free trial"}
-                            </p>
-                          )}
-                          {plan.inherits_from && (
-                            <p className={`snap-card-price-sub ${d}`} style={{ fontStyle: "italic" }}>
-                              Everything in {plan.inherits_from}
-                            </p>
-                          )}
-                          <div className={`snap-card-divider ${d}`}></div>
-                          {plan.features?.length > 0 && (
-                            <div className="snap-card-features">
-                              {plan.features.map((rawF, fi) => {
-                                const f = getFeatureShape(rawF);
-                                const isDisabled = f.status === "disabled";
-                                return (
-                                  <div key={fi} className="snap-card-feature" style={isDisabled ? { opacity: 0.45 } : undefined}>
-                                    <i className={`ti ${isDisabled ? "ti-x" : "ti-check"} snap-card-check ${d}`}></i>
-                                    <span
-                                      className={`snap-card-feature-text ${d}`}
-                                      style={isDisabled ? { textDecoration: "line-through" } : undefined}
-                                    >
-                                      {f.name}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    };
-
-                    return (
-                      <div className="snap-cards-grid">
-                        <div className="snap-cards-inner" style={{ gridTemplateColumns: rowCols(firstRow) }}>
-                          {firstRow.map((plan, i) => renderCard(plan, i, i))}
-                        </div>
-                        {secondRow.length > 0 && (
-                          <div className="snap-cards-inner" style={{ gridTemplateColumns: rowCols(secondRow), borderTop: '1px solid #e0e0e0' }}>
-                            {secondRow.map((plan, i) => renderCard(plan, i, i + 4))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })() : snapshot.data.plans?.length > 0 ? (() => {
-                    const plans = snapshot.data.plans;
-                    const count = plans.length;
-                    const yearlyPrices = snapshot.data.yearlyPrices || [];
-                    const monthlyPrices = snapshot.data.monthlyPrices || [];
-                    const activePrices = (snapAnnual && yearlyPrices.length > 0)
-                      ? yearlyPrices
-                      : (monthlyPrices.length > 0)
-                        ? monthlyPrices
-                        : (snapshot.data.prices || []);
-
-                    const darkIndex = count === 1 ? 0 : count === 2 ? 1 : 1;
-                    const featuresPerPlan = Math.ceil((snapshot.data.features?.length || 0) / count);
-
-                    const firstRow = plans.slice(0, 4);
-                    const secondRow = plans.slice(4);
-
-                    const rowCols = (n: number) =>
-                      n === 1 ? '1fr' : n === 2 ? '1fr 1fr' : n === 3 ? 'repeat(3, 1fr)' : '1fr 1fr 1fr 1fr';
-
-                    const renderLegacyCard = (plan: string, i: number) => {
-                      const isDark = i === darkIndex;
-                      const d = isDark ? "dark" : "";
-                      const planPrice = activePrices?.[i] || null;
-                      const planFeatures = snapshot.data.features?.slice(i * featuresPerPlan, (i + 1) * featuresPerPlan) || [];
-                      return (
-                        <div key={i} className={`snap-card ${d}`}>
-                          <p className={`snap-card-name ${d}`}>{plan}</p>
-                          {planPrice ? (
-                            <>
-                              <p className={`snap-card-price ${d}`}>{cleanPrice(planPrice)}</p>
-                              <p className={`snap-card-price-sub ${d}`}>per month</p>
-                            </>
-                          ) : (
-                            <p className={`snap-card-price-sub ${d}`} style={{ marginBottom: 14 }}>Price not detected</p>
-                          )}
-                          <div className={`snap-card-divider ${d}`}></div>
-                          {planFeatures.length > 0 && (
-                            <div className="snap-card-features">
-                              {planFeatures.map((f: string, fi: number) => (
-                                <div key={fi} className="snap-card-feature">
-                                  <i className={`ti ti-check snap-card-check ${d}`}></i>
-                                  <span className={`snap-card-feature-text ${d}`}>{f}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    };
-
-                    return (
-                      <div className="snap-cards-grid">
-                        <div className="snap-cards-inner" style={{ gridTemplateColumns: rowCols(firstRow.length) }}>
-                          {firstRow.map((plan, i) => renderLegacyCard(plan, i))}
-                        </div>
-                        {secondRow.length > 0 && (
-                          <div className="snap-cards-inner" style={{ gridTemplateColumns: rowCols(secondRow.length), borderTop: '1px solid #e0e0e0' }}>
-                            {secondRow.map((plan, i) => renderLegacyCard(plan, i + 4))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })() : (
-                    <div className="snap-fallback">
-                      {snapshot.data.prices?.length > 0 && (
-                        <div style={{ marginBottom: 10 }}>
-                          <p className="snap-label" style={{ marginBottom: 6 }}>Detected Prices</p>
-                          <div className="snap-fallback-prices">
-                            {snapshot.data.prices.map((p, i) => <span key={i} className="snap-fallback-price">{p}</span>)}
-                          </div>
-                        </div>
-                      )}
-                      {snapshot.data.features?.length > 0 && (
-                        <div>
-                          <p className="snap-label" style={{ marginBottom: 6 }}>Detected Features</p>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 4 }}>
-                            {snapshot.data.features.slice(0, 6).map((f, i) => (
-                              <div key={i} className="snap-card-feature">
-                                <i className="ti ti-check snap-card-check"></i>
-                                <span className="snap-card-feature-text">{f}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  </>
-                )}
+  <div style={{ padding: "2rem", textAlign: "center", color: "#aaa", fontSize: 13 }}>
+    No screenshot captured for this snapshot yet.
+  </div>
+)}
 
                 </div>
               ) : (
