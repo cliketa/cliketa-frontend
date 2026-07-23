@@ -31,12 +31,47 @@ interface Change {
   created_at: string;
 }
 
+interface PlanPrice {
+  current: string | null;
+  original?: string | null;
+  discount_label?: string | null;
+}
+
+interface PlanFeature {
+  name: string;
+  status: "included" | "disabled";
+}
+
+interface PlanTrial {
+  has_trial: boolean;
+  days: number | null;
+}
+
 interface PlanData {
   name: string;
-  price?: string | null;          // legacy single price (older snapshots)
-  priceMonthly?: string | null;   // new dual pricing
+  inherits_from?: string | null;
+  // NEW shape (current scraper output):
+  price?: PlanPrice | string | null;   // object going forward; string only on old snapshots
+  trial?: PlanTrial;
+  features: (PlanFeature | string)[];  // object going forward; string only on old snapshots
+  // LEGACY fields — still present on snapshots saved before this schema
+  // update. Kept optional so old history keeps rendering correctly.
+  priceMonthly?: string | null;
   priceYearly?: string | null;
-  features: string[];
+}
+
+// Unwrap plan.price into a plain display string, regardless of whether
+// it's the new {current,...} object or an old plain string/legacy field.
+function getDisplayPrice(plan: PlanData): string | null {
+  if (plan.price && typeof plan.price === "object") return plan.price.current || null;
+  return (plan.priceMonthly || plan.priceYearly || (plan.price as string | null) || null);
+}
+
+// Unwrap a feature entry into {name, status}, regardless of whether it's
+// the new object shape or an old plain string (treated as "included").
+function getFeatureShape(f: PlanFeature | string): { name: string; status: "included" | "disabled" } {
+  if (f && typeof f === "object") return { name: f.name, status: f.status || "included" };
+  return { name: String(f), status: "included" };
 }
 
 interface Snapshot {
@@ -873,24 +908,54 @@ const recentChanges = [...changes]
                     const renderCard = (plan: PlanData, i: number, globalIndex: number) => {
                       const isDark = globalIndex === darkIndex;
                       const d = isDark ? "dark" : "";
-                      const shownPrice = plan.priceMonthly || plan.priceYearly || plan.price;
+                      const shownPrice = getDisplayPrice(plan);
+                      const priceObj = plan.price && typeof plan.price === "object" ? plan.price : null;
                       return (
                         <div key={globalIndex} className={`snap-card ${d}`}>
                           <p className={`snap-card-name ${d}`}>{plan.name}</p>
                           {shownPrice ? (
-                            <p className={`snap-card-price ${d}`}>{cleanPrice(shownPrice)}</p>
+                            <p className={`snap-card-price ${d}`}>
+                              {cleanPrice(shownPrice)}
+                              {priceObj?.original && (
+                                <span style={{ fontSize: 12, color: "#999", textDecoration: "line-through", marginLeft: 6, fontWeight: 400 }}>
+                                  {cleanPrice(priceObj.original)}
+                                </span>
+                              )}
+                            </p>
                           ) : (
                             <p className={`snap-card-price ${d}`} style={{ opacity: 0.2 }}>—</p>
+                          )}
+                          {priceObj?.discount_label && (
+                            <p className={`snap-card-price-sub ${d}`} style={{ color: "#16a34a" }}>{priceObj.discount_label}</p>
+                          )}
+                          {plan.trial?.has_trial && (
+                            <p className={`snap-card-price-sub ${d}`}>
+                              {plan.trial.days ? `${plan.trial.days}-day trial` : "Free trial"}
+                            </p>
+                          )}
+                          {plan.inherits_from && (
+                            <p className={`snap-card-price-sub ${d}`} style={{ fontStyle: "italic" }}>
+                              Everything in {plan.inherits_from}
+                            </p>
                           )}
                           <div className={`snap-card-divider ${d}`}></div>
                           {plan.features?.length > 0 && (
                             <div className="snap-card-features">
-                              {plan.features.map((f, fi) => (
-                                <div key={fi} className="snap-card-feature">
-                                  <i className={`ti ti-check snap-card-check ${d}`}></i>
-                                  <span className={`snap-card-feature-text ${d}`}>{f}</span>
-                                </div>
-                              ))}
+                              {plan.features.map((rawF, fi) => {
+                                const f = getFeatureShape(rawF);
+                                const isDisabled = f.status === "disabled";
+                                return (
+                                  <div key={fi} className="snap-card-feature" style={isDisabled ? { opacity: 0.45 } : undefined}>
+                                    <i className={`ti ${isDisabled ? "ti-x" : "ti-check"} snap-card-check ${d}`}></i>
+                                    <span
+                                      className={`snap-card-feature-text ${d}`}
+                                      style={isDisabled ? { textDecoration: "line-through" } : undefined}
+                                    >
+                                      {f.name}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
