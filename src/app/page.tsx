@@ -875,14 +875,23 @@ const recentChanges = [...changes]
     fresh every scan. This IS the snapshot now — no structured data shown
     here, just exactly what the competitor's page currently displays. */}
 {snapshot.data.sectionScreenshotBase64 ? (
-  <div style={{ padding: "1rem", background: "#fafafa" }}>
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img
-      src={`data:image/png;base64,${snapshot.data.sectionScreenshotBase64}`}
-      alt="Pricing section — real screenshot from latest scan"
-      style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
-    />
-    <p style={{ fontSize: 11, color: "#aaa", marginTop: 8, textAlign: "center" }}>
+  <div style={{ padding: "1.5rem", background: "#f5f5f5" }}>
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 12,
+        padding: 10,
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05)",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`data:image/png;base64,${snapshot.data.sectionScreenshotBase64}`}
+        alt="Pricing section — real screenshot from latest scan"
+        style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
+      />
+    </div>
+    <p style={{ fontSize: 11, color: "#aaa", marginTop: 10, textAlign: "center" }}>
       Captured live from the competitor&apos;s page during the latest scan
     </p>
   </div>
