@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -92,6 +93,7 @@ interface Snapshot {
     hasMonthly: boolean;
     hasAnnual: boolean;
     scrapedAt: string;
+    sectionScreenshotBase64?: string | null; // Layer 3.5 — daily visual proof of the pricing section
   };
   created_at: string;
 }
@@ -149,6 +151,7 @@ export default function Dashboard() {
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState<"success" | "error" | null>(null);
   const [snapAnnual, setSnapAnnual] = useState(false);
+  const [showScreenshot, setShowScreenshot] = useState(false); // Layer 3.5 toggle
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
 function showToast(type: "success" | "error", text: string) {
@@ -882,8 +885,39 @@ const recentChanges = [...changes]
                   {/* Header */}
 <div className="snap-header">
   <p className="snap-title">Latest Snapshot</p>
+  {snapshot.data.sectionScreenshotBase64 && (
+    <button
+      onClick={() => setShowScreenshot(s => !s)}
+      className="btn-sec"
+      style={{ fontSize: 12, padding: "4px 10px" }}
+    >
+      <i className={`ti ${showScreenshot ? "ti-list" : "ti-photo"}`}></i>
+      {showScreenshot ? "View structured data" : "View real screenshot"}
+    </button>
+  )}
 </div>
 
+{/* Layer 3.5 — real, current screenshot of the pricing section, captured
+    fresh every scan. This is the visual proof/trust layer: whatever the
+    structured data says, the founder can compare it against exactly what
+    the competitor's page actually shows right now. */}
+{showScreenshot && snapshot.data.sectionScreenshotBase64 ? (
+  <div style={{ padding: "1rem", background: "#fafafa", textAlign: "center" }}>
+    <div style={{ position: "relative", width: "100%", height: 500, borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e8" }}>
+      <Image
+        src={`data:image/png;base64,${snapshot.data.sectionScreenshotBase64}`}
+        alt="Pricing section — real screenshot from latest scan"
+        fill
+        unoptimized
+        style={{ objectFit: "contain" }}
+      />
+    </div>
+    <p style={{ fontSize: 11, color: "#aaa", marginTop: 8 }}>
+      Captured live from the competitor&apos;s page during the latest scan
+    </p>
+  </div>
+) : (
+  <>
 
                   {/* Plan cards — prefer Claude's planData (accurate, bundled),
                       fall back to the old separate arrays only if absent */}
@@ -1062,6 +1096,9 @@ const recentChanges = [...changes]
                       )}
                     </div>
                   )}
+
+                  </>
+                )}
 
                 </div>
               ) : (
